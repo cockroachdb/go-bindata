@@ -3,17 +3,19 @@ SHELL = /bin/bash -o pipefail
 export PATH := $(PATH):/usr/local/meter/bin
 
 BENCHSTAT := $(GOPATH)/bin/benchstat
+DIFFER := $(GOPATH)/bin/differ
 RELEASE := $(GOPATH)/bin/github-release
+STATICCHECK := $(GOPATH)/bin/staticcheck
 WRITE_MAILMAP := $(GOPATH)/bin/write_mailmap
 
 all:
 	$(MAKE) -C testdata
 
-diff-testdata:
+diff-testdata: $(DIFFER)
 	differ $(MAKE) -C testdata
 	differ go fmt ./testdata/out/...
 
-lint:
+lint: $(STATICCHECK)
 	go vet ./...
 	staticcheck ./...
 
@@ -35,6 +37,12 @@ $(GOPATH)/bin/go-bindata:
 $(BENCHSTAT):
 	go get golang.org/x/perf/cmd/benchstat
 
+$(DIFFER):
+	go get github.com/kevinburke/differ
+
+$(STATICCHECK):
+	go get honnef.co/go/tools/cmd/staticcheck
+
 bench: $(GOPATH)/bin/go-bindata | $(BENCHSTAT)
 	go list ./... | grep -v vendor | xargs go test -benchtime=5s -bench=. -run='^$$' 2>&1 | $(BENCHSTAT) /dev/stdin
 
@@ -48,11 +56,7 @@ AUTHORS.txt: force | $(WRITE_MAILMAP)
 
 authors: AUTHORS.txt
 
-ci-install:
-	curl -s https://packagecloud.io/install/repositories/meter/public/script.deb.sh | sudo bash
-	sudo apt-get -qq -o=Dpkg::Use-Pty=0 install staticcheck differ
-
-ci: ci-install lint go-race-test diff-testdata
+ci: lint go-race-test diff-testdata
 
 # Ensure you have updated go-bindata/version.go manually.
 release: | $(RELEASE) race-test diff-testdata
